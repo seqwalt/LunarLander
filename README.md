@@ -2,7 +2,7 @@
 Direct collocation is used to obtain an optimal trajectory for a lunar lander simulation. Trapeziodal quadrature is used to approximate the various integrals used in the optimal control problem. Runge-Kutta 4 is used to simulate the dynamics of the system. This is the final project for MATH 514 - Numerical Analysis.
 
 ## Usage
-To run the code, the three main dependencies `numpy`, `ipopt`, and `pyomo` need to be installed. The file `lander_sim.py` can be run in order to solve the optimal control problem, simulate the dynamics and create a movie of the simulation.
+To run the code, the three main dependencies [numpy](https://numpy.org/), [ipopt](https://coin-or.github.io/Ipopt/), and [pyomo](http://www.pyomo.org/) need to be installed. The file `lander_sim.py` can be run in order to solve the optimal control problem, simulate the dynamics and create a movie of the simulation.
 
 ## Examples
 - Example of optimal trajectory with path shown.
