@@ -8,11 +8,8 @@ To run the code, the three main dependencies `numpy`, `ipopt`, and `pyomo` need 
 - Example of optimal trajectory with path shown.
 - Low gravity example with g = 0.1 m/s^2.
 - A flip can be achieved by setting the initial angle to 2\*pi, and the final angle to 0.
-                                |
-:------------------------------:|:-------------------------:
-![](movies/gifs/show_traj.gif)  |  ![](movies/gifs/flip.gif)
 
-
+![](movies/gifs/show_traj.gif) ![](movies/gifs/flip.gif)
 
 ![](movies/gifs/low_grav.gif)
 
