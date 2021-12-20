@@ -127,7 +127,7 @@ def SolveTrajectory(INIT_STATE, REF_STATE, U_BOUND, CONSTANTS, T, numColl, op_sy
 
     # compute a solution using ipopt for nonlinear optimization
     if op_sys == 'linux':
-        solver_exe='/home/sequoyah/Software/ipopt_binary/ipopt'
+        solver_exe='~/Software/ipopt_binary/ipopt'
         results = pyo.SolverFactory('ipopt',executable=solver_exe).solve(instance)
     elif op_sys == 'mac':
         results = pyo.SolverFactory('ipopt').solve(instance)
