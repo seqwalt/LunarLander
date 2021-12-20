@@ -1,5 +1,5 @@
 # LunarLander
-Direct collocation is used to obtain an optimal trajectory for a lunar lander simulation. This is the final project for MATH 514 - Numerical Analysis. To run the code, \verb|sdf| Below are some gifs that demonstrate various examples.
+Direct collocation is used to obtain an optimal trajectory for a lunar lander simulation. This is the final project for MATH 514 - Numerical Analysis. To run the code, the three main dependencies `numpy`, `ipopt`, and 'pyomo' need to be installed. The file `lander_sim.py` can be run in order to solve the optimal control problem, simulate the dynamics, then create a movie of the simulation. Below are some gifs that demonstrate various examples.
 
 -Example of optimal trajectory with path shown:
 
