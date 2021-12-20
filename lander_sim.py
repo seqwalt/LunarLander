@@ -33,7 +33,7 @@ def F(STATE,CONTROL,CONSTANTS):
 # meta data
 op_sys = "linux" # options are "linux" or "mac"
 open_mov = 1     # open movie on completion? 1=yes, 0=no
-file_name = "OPT_controller011"
+file_name = "OPT_controller007"
 fps = 20 # frames per second of movie
 meta_data = (op_sys, open_mov, file_name, fps)
 
@@ -44,7 +44,7 @@ rotI = (13/12)*m
 Const = np.array(([bv,bo,m,g,rotI])) # order matters with these consts
 
 # Initial State
-x0 = -2; y0 = 0; ang0 = 2*pi;
+x0 = -2; y0 = 3; ang0 = 0;
 vx0 = 0; vy0 = 0; omega0 = 0;
 X0 = np.array(([x0],[y0],[ang0],[vx0],[vy0],[omega0])) # initial state
 X = X0
@@ -67,7 +67,7 @@ Xref = np.array(([xref],[yref],[angref],\
     [vxref],[vyref],[omegaref])) # reference state
 
 # Total time and time steps size
-T = 10
+T = 4
 h = 0.0025
 step_sizes = np.array(([h]))
 

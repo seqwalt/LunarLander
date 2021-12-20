@@ -97,8 +97,8 @@ def VisualizeLander(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
         ax.add_patch(thr)
         ax.add_patch(fire)
         #plt.plot(rotPnt[0]+pos[0],rotPnt[1]+pos[1],'ko') # pt of rotation
-        # plt.plot(X,Y + b/2 + abv,'g') # trajectory
-        # plt.plot(x,y,'go') # current position
+        plt.plot(X,Y + b/2 + abv,'g') # trajectory
+        plt.plot(x,y,'go') # current position
         plt.plot([min(X)-1,max(X)+1],[0,0],"k")
         plt.plot(REF[0],REF[1] + b/2 + abv,"bo")
         ax.set_xlim(min(X)-1,max(X)+1)
