@@ -1,4 +1,4 @@
-# LunarLander
+# Lunar Lander Optimal Control
 Inspired by the [Lunar Lander Atari](https://en.wikipedia.org/wiki/Lunar_Lander_(1979_video_game)) game, this project aims to perform optimal control on a lunar lander system. Direct collocation is used to obtain an optimal trajectory for simulating the dynamics. Trapeziodal quadrature is used to approximate the various integrals used in the optimal control problem. Runge-Kutta 4 is used to simulate the dynamics of the system. This is the final project for MATH 514 - Numerical Analysis.
 
 ## Usage
