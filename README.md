@@ -4,13 +4,13 @@ Direct collocation is used to obtain an optimal trajectory for a lunar lander si
 ## Usage
 To run the code, the three main dependencies `numpy`, `ipopt`, and `pyomo` need to be installed. The file `lander_sim.py` can be run in order to solve the optimal control problem, simulate the dynamics and create a movie of the simulation.
 
-## Examples Videos
-Example of optimal trajectory with path shown:
+## Examples
+- Example of optimal trajectory with path shown.
+- Low gravity example with g = 0.1 m/s^2.
+- A flip can be achieved by setting the initial angle to 2\*pi, and the final angle to 0.
 
 ![](movies/gifs/show_traj.gif)
-Low gravity example with g = 0.1 m/s^2:
 
 ![](movies/gifs/low_grav.gif)
-A flip can be achieved by setting the initial angle to 2\*pi, and the final angle to 0:
 
 ![](movies/gifs/flip.gif)
