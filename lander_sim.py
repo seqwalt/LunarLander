@@ -23,28 +23,28 @@ def F(STATE,CONTROL,CONSTANTS):
     bv,bo,m,g,rotI = CONSTANTS
 
     f_x  = vx; f_y = vy; f_ang = omega  # velocities
-    f_vx = -bv*vx + thrust*sin(-ang)/m    # accelerations
-    f_vy = -(g + bv*vy) + thrust*cos(ang)/m
-    f_omega  = -bo*omega + torque/rotI
+    f_vx = -bv*vx/m + thrust*sin(-ang)/m    # accelerations
+    f_vy = -(g + bv*vy/m) + thrust*cos(ang)/m
+    f_omega  = -bo*omega/rotI + torque/rotI
 
     vector = np.array(([f_x, f_y, f_ang, f_vx, f_vy, f_omega]))
     return vector.reshape(6,1)
 
 # meta data
 op_sys = "linux" # options are "linux" or "mac"
-open_mov = 1     # open movie on completion? 1=yes, 0=no
+open_mov = 0     # open movie on completion? 1=yes, 0=no
 file_name = "OPT_controller007"
-fps = 20 # frames per second of movie
+fps = 2 # frames per second of movie
 meta_data = (op_sys, open_mov, file_name, fps)
 
 # Constants
-bv = 0.5; bo = 1
+bv = 5; bo = 11
 g = 9.8; m = 10
 rotI = (13/12)*m
 Const = np.array(([bv,bo,m,g,rotI])) # order matters with these consts
 
 # Initial State
-x0 = -2; y0 = 3; ang0 = 0;
+x0 = -1; y0 = 0; ang0 = 2*pi;
 vx0 = 0; vy0 = 0; omega0 = 0;
 X0 = np.array(([x0],[y0],[ang0],[vx0],[vy0],[omega0])) # initial state
 X = X0
@@ -61,13 +61,13 @@ U = U0
 Ubound = np.array(([max_thrust], [max_torque]))
 
 # Reference tracking state
-xref = 2; yref = 0; angref = 0;
+xref = 1; yref = 0; angref = 0;
 vxref = 0; vyref = 0; omegaref = 0;
 Xref = np.array(([xref],[yref],[angref],\
     [vxref],[vyref],[omegaref])) # reference state
 
 # Total time and time steps size
-T = 4
+T = 8
 h = 0.0025
 step_sizes = np.array(([h]))
 
@@ -121,6 +121,7 @@ for j in range(int(T/h)):
         a = 1
     else:
         a = 0
+    #a = 0
     K = a*np.array(([0, -60*m*g*(2+cos(X[2][0]-pi)), 0, 0, -80*m*g*(2+cos(X[2][0]-pi)), 0],\
                   [8, 0, -75, 10, 0, -40]))
     U_opt = U_interp[j,:].reshape(-1,1)
@@ -158,24 +159,38 @@ fd = os.open('/dev/null',os.O_WRONLY)
 os.dup2(fd,2)
 
 # Make plot of trajectory
-
+'''
 print('Creating plot...')
 print()
-csfont = {'fontname':'Times New Roman'}
-plt.plot(x_arr,y_arr + 0.75,'k',label="sim trajectory")
+
+SMALL_SIZE = 12
+MEDIUM_SIZE = 14
+BIGGER_SIZE = 16
+
+plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+plt.plot(x_arr,y_arr + 0.75,'k:',label="sim trajectory")
 plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,'g',label="opt trajectory")
+plt.plot(x_arr[0],y_arr[0]+0.75,'bo',label="start point")
 plt.legend()
-plt.xlabel("x position")
-plt.ylabel("y position")
+plt.xlabel("x position (m)")
+plt.ylabel("y position (m)")
 plt.axis("equal")
 
 plt.figure()
-plt.plot(t_arr,ang_arr,'k',label="sim trajectory")
+plt.plot(t_arr,ang_arr,'k:',label="sim trajectory")
 plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],'g',label="opt trajectory")
+plt.plot(t_arr[0],ang_arr[0],'bo',label="start point")
 plt.legend()
-plt.xlabel("time")
-plt.ylabel("angle")
+plt.xlabel("time (s)")
+plt.ylabel("angle (rad)")
 plt.show()
-
+'''
 # Create a movie of the simulation:
 VisualizeLander(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)

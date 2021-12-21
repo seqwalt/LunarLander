@@ -67,19 +67,19 @@ def SolveTrajectory(INIT_STATE, REF_STATE, U_BOUND, CONSTANTS, T, numColl, op_sy
     def vx_constraint(M, i):
         return M.vx[i] - M.vx[i-1] == \
             .5*M.h[i]*( (1/m)*(M.thrust[i]*pyo.sin(-M.ang[i]) + \
-            M.thrust[i-1]*pyo.sin(-M.ang[i-1])) - bv*(M.vx[i] + M.vx[i-1]) )
+            M.thrust[i-1]*pyo.sin(-M.ang[i-1])) - (bv/m)*(M.vx[i] + M.vx[i-1]) )
     model.vxConstraint = pyo.Constraint(model.J, rule=vx_constraint)
 
     def vy_constraint(M, i):
         return M.vy[i] - M.vy[i-1] == \
             .5*M.h[i]*( -2*g + (1/m)*(M.thrust[i]*pyo.cos(M.ang[i]) + \
-            M.thrust[i-1]*pyo.cos(M.ang[i-1])) - bv*(M.vy[i] + M.vy[i-1]) )
+            M.thrust[i-1]*pyo.cos(M.ang[i-1])) - (bv/m)*(M.vy[i] + M.vy[i-1]) )
     model.vyConstraint = pyo.Constraint(model.J, rule=vy_constraint)
 
     def omega_constraint(M, i):
         return M.omega[i] - M.omega[i-1] == \
             .5*M.h[i]*( (1/rotI)*(M.torque[i] + M.torque[i-1]) - \
-            bo*(M.omega[i] + M.omega[i-1]) )
+            (bo/rotI)*(M.omega[i] + M.omega[i-1]) )
     model.omegaConstraint = pyo.Constraint(model.J, rule=omega_constraint)
 
     ## ------------------------------------ ##
