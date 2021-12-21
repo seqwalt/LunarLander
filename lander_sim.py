@@ -32,9 +32,9 @@ def F(STATE,CONTROL,CONSTANTS):
 
 # meta data
 op_sys = "linux" # options are "linux" or "mac"
-open_mov = 0     # open movie on completion? 1=yes, 0=no
-file_name = "OPT_controller007"
-fps = 2 # frames per second of movie
+open_mov = 1     # open movie on completion? 1=yes, 0=no
+file_name = "OPT_controller008"
+fps = 15 # frames per second of movie
 meta_data = (op_sys, open_mov, file_name, fps)
 
 # Constants
@@ -67,7 +67,7 @@ Xref = np.array(([xref],[yref],[angref],\
     [vxref],[vyref],[omegaref])) # reference state
 
 # Total time and time steps size
-T = 8
+T = 5
 h = 0.0025
 step_sizes = np.array(([h]))
 
@@ -159,7 +159,6 @@ fd = os.open('/dev/null',os.O_WRONLY)
 os.dup2(fd,2)
 
 # Make plot of trajectory
-'''
 print('Creating plot...')
 print()
 
@@ -191,6 +190,6 @@ plt.legend()
 plt.xlabel("time (s)")
 plt.ylabel("angle (rad)")
 plt.show()
-'''
+
 # Create a movie of the simulation:
 VisualizeLander(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)

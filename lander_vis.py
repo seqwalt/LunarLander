@@ -52,12 +52,11 @@ def VisualizeLander(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
 
     print('Creating '+str(fps)+' FPS movie...')
     print()
-    fig = plt.gcf()
-    fig.set_size_inches(x_inches,y_inches)
+
     for j in range(int(fps*(TIME[-1]+T_aft))):
         # set figure size
-        #fig = plt.gcf()
-        #fig.set_size_inches(x_inches,y_inches)
+        fig = plt.gcf()
+        fig.set_size_inches(x_inches,y_inches)
 
         # want i-th data point
         i = j*int(len(TIME)/int(fps*TIME[-1]))
@@ -69,7 +68,7 @@ def VisualizeLander(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
             pos = np.array(([x],[y]))
             ang = ANG[i]
             th  = THRUST[i]
-        elif y < b/2 + abv + 5e-3: # thrust off after landing
+        elif y < b/2 + abv + 1e-2: # thrust off after landing
             th = 0
 
         # Collect control graphics, and center about rotation pt.
@@ -86,11 +85,11 @@ def VisualizeLander(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
         FPTS  = (R@FPts + pos).T
 
         # Plot Polygons
-        bod = Polygon(BPTS, fc="w", ec="k", alpha = 0.2)
-        l1 = Polygon(L1PTS, fc="w", ec="k", alpha = 0.2)
-        l2 = Polygon(L2PTS, fc="w", ec="k", alpha = 0.2)
-        thr = Polygon(TPTS, fc="k", ec="k", alpha = 0.2)
-        fire = Polygon(FPTS, fc="r", ec="k", alpha = 0.2)
+        bod = Polygon(BPTS, fc="w", ec="k", alpha = 1)
+        l1 = Polygon(L1PTS, fc="w", ec="k", alpha = 1)
+        l2 = Polygon(L2PTS, fc="w", ec="k", alpha = 1)
+        thr = Polygon(TPTS, fc="k", ec="k", alpha = 1)
+        fire = Polygon(FPTS, fc="r", ec="k", alpha = 1)
         ax = plt.gca()
         ax.add_patch(bod)
         ax.add_patch(l1)
@@ -101,17 +100,13 @@ def VisualizeLander(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
         plt.plot(X,Y + b/2 + abv,'g') # trajectory
         plt.plot(x,y,'ko') # current position
         plt.plot([min(X)-1,max(X)+1],[0,0],"k")
-        # plt.plot(REF[0],REF[1] + b/2 + abv,"b^",label="reference point")
-        # plt.plot(X[0],Y[0] + b/2 + abv,"bo",label="start point")
+        plt.plot(REF[0],REF[1] + b/2 + abv,"mo",label="reference point")
+        plt.plot(X[0],Y[0] + b/2 + abv,"bo",label="start point")
         ax.set_xlim(min(X)-1,max(X)+1)
         ax.set_ylim(min(Y)-0.5,max(Y)+2)
-        # plt.legend(loc='upper right')
-        #plt.savefig("temp_imgs/image" + str(j).zfill(4) + ".png")
-        #plt.close()
-    plt.plot(REF[0],REF[1] + b/2 + abv,"b^",label="reference point")
-    plt.plot(X[0],Y[0] + b/2 + abv,"bo",label="start point")
-    plt.legend(loc='upper right')
-    plt.show()
+        plt.legend(loc='upper right')
+        plt.savefig("temp_imgs/image" + str(j).zfill(4) + ".png")
+        plt.close()
     filename = meta_data[2]
     os.system("ffmpeg -hide_banner -loglevel error -y -framerate "+str(fps)+" -i temp_imgs/image%04d.png \
         -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 20 -pix_fmt \
