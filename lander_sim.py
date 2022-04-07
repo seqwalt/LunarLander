@@ -3,8 +3,9 @@ from scipy.interpolate import interp1d
 import numpy as np
 from numpy import cos, sin, pi
 from matplotlib import pyplot as plt
-from lander_vis import VisualizeLander
 from traj_solver import SolveTrajectory
+from create_files import TrajFiles
+from lander_vis import VisualizeLander
 # ----------
 # States: in SI units (Newtons; m/s; kg; etc.)
 # x = horizontal position; y = vertical position; ang = tilt angle
@@ -33,18 +34,19 @@ def F(STATE,CONTROL,CONSTANTS):
 # meta data
 op_sys = "linux" # options are "linux" or "mac"
 open_mov = 1     # open movie on completion? 1=yes, 0=no
+traj_data_readme = 1 # generate trajectory csv and readme? 1=yes, 0=no
 file_name = "OPT_controller008"
 fps = 15 # frames per second of movie
 meta_data = (op_sys, open_mov, file_name, fps)
 
 # Constants
-bv = 5; bo = 11
-g = 9.8; m = 10
+bv = 5; bo = 11 # b_v and b_{\omega}
+g = 2; m = 10 # gravity and mass
 rotI = (13/12)*m
 Const = np.array(([bv,bo,m,g,rotI])) # order matters with these consts
 
 # Initial State
-x0 = -1; y0 = 0; ang0 = 2*pi;
+x0 = -1; y0 = 0; ang0 = 0;
 vx0 = 0; vy0 = 0; omega0 = 0;
 X0 = np.array(([x0],[y0],[ang0],[vx0],[vy0],[omega0])) # initial state
 X = X0
@@ -114,6 +116,7 @@ t_arr = np.zeros((int(T/h)+1))
 print('Running simulation...')
 print()
 
+# Runge-Kutta 4 simulation
 for j in range(int(T/h)):
     # gain matrix for closed-loop control
     # only works for small angles
@@ -128,7 +131,7 @@ for j in range(int(T/h)):
     Xref_new = X_interp[j,:].reshape(-1,1)
     U = K@(X-Xref_new) + U_opt
     #U = U_opt
-    U[0] = np.clip(U[0],0,max_thrust) # constraint thrust
+    U[0] = np.clip(U[0],0,max_thrust) # constrain thrust
     U[1] = np.clip(U[1],-max_torque,max_torque) # constrain torque
 
     x_arr[j] = X[0]
@@ -149,9 +152,13 @@ for j in range(int(T/h)):
 x_arr[j+1] = X[0]
 y_arr[j+1] = X[1]
 ang_arr[j+1] = X[2]
-u0_arr[j+1] = U[0]
-u1_arr[j+1] = U[1]
+u0_arr[j+1] = U[0]  # Thrust
+u1_arr[j+1] = U[1]  # Torque
 t_arr[j+1] = h*j
+
+# Generate trajectory data files (csv and readme)
+if traj_data_readme == 1:
+    TrajFiles(t_arr,x_arr,y_arr,ang_arr,u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,h)
 
 # Visualizations
     # Suppress GTK warning outputs
@@ -192,4 +199,4 @@ plt.ylabel("angle (rad)")
 plt.show()
 
 # Create a movie of the simulation:
-VisualizeLander(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)
+# VisualizeLander(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)

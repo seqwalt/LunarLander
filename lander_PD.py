@@ -101,7 +101,7 @@ os.dup2(fd,2)
 
 # Create a movie of the simulation:
 #VisualizeLander(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)
-'''
+#'''
 plt.plot(x_arr,y_arr,'k',label="trajectory")
 #plt.plot(t_arr,ang_arr,'g.')
 plt.legend()
@@ -109,4 +109,4 @@ plt.xlabel("x position")
 plt.ylabel("y position")
 plt.axis("equal")
 plt.show()
-'''
+#'''

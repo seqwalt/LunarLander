@@ -1,7 +1,7 @@
 from __future__ import division
 import pyomo.environ as pyo
 import numpy as np
-from create_dat import GenerateDAT
+from create_files import GenerateDAT
 
 def SolveTrajectory(INIT_STATE, REF_STATE, U_BOUND, CONSTANTS, T, numColl, op_sys):
     print()
@@ -86,7 +86,7 @@ def SolveTrajectory(INIT_STATE, REF_STATE, U_BOUND, CONSTANTS, T, numColl, op_sy
 
     ## ----- Create State Constraints ----- ##
 
-    def legs_constraint(M, i): # legs above ground always
+    def legs_constraint(M, i): # legs always above ground
         return M.y[i] >= abs(.78*pyo.sin(M.ang[i]))
     model.legsConstraint = pyo.Constraint(model.I, rule=legs_constraint)
 
