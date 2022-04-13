@@ -32,24 +32,55 @@ def F(STATE,CONTROL,CONSTANTS):
     return vector.reshape(6,1)
 
 # meta data
-op_sys = "linux" # options are "linux" or "mac"
-open_mov = 1     # open movie on completion? 1=yes, 0=no
-traj_data_readme = 1 # generate trajectory csv and readme? 1=yes, 0=no
-file_name = "OPT_controller008"
+op_sys = "mac" # options are "linux" or "mac"
+gen_mov  = 0     # generate movie on completion? 1=yes, 0=no
+open_mov = 0     # open movie on completion? 1=yes, 0=no
+traj_data_generate = 1 # generate trajectory csv and readme? 1=yes, 0=no
+make_plots = 0   # generate trajectory and control plots? 1=yes, 0=no
+rand_BC = 1      # Random boundary conditions? 1=yes, 0=no
+file_name = "OPT_controller008" # movie file name
 fps = 15 # frames per second of movie
 meta_data = (op_sys, open_mov, file_name, fps)
 
 # Constants
 bv = 5; bo = 11 # b_v and b_{\omega}
-g = 2; m = 10 # gravity and mass
+g = 9.8; m = 10 # gravity and mass
 rotI = (13/12)*m
 Const = np.array(([bv,bo,m,g,rotI])) # order matters with these consts
 
-# Initial State
-x0 = -1; y0 = 0; ang0 = 0;
-vx0 = 0; vy0 = 0; omega0 = 0;
-X0 = np.array(([x0],[y0],[ang0],[vx0],[vy0],[omega0])) # initial state
-X = X0
+if rand_BC != 1:
+    # Not random boundary conditions
+    # Total time in seconds
+    T = 5
+
+    # Initial State
+    x0 = -1; y0 = 0; ang0 = 0;
+    vx0 = 0; vy0 = 0; omega0 = 0;
+    X0 = np.array(([x0],[y0],[ang0],[vx0],[vy0],[omega0])) # initial state
+    X = X0
+
+    # Reference tracking state
+    xref = 1; yref = 0; angref = 0;
+    vxref = 0; vyref = 0; omegaref = 0;
+    Xref = np.array(([xref],[yref],[angref],\
+        [vxref],[vyref],[omegaref])) # reference state
+else:
+    # Random boundary conditions
+    rand_init = lambda : 2*(np.random.rand(6,1) - 0.5) # vals from -1 to 1
+    range_vals = np.array(([-5,5],[0,10],[-2*np.pi,2*np.pi],[-3,3],[-3,3],[-2*np.pi,2*np.pi])) # row 1: x range, row 2: y range etc.
+    centers = np.mean(range_vals,1).reshape(-1,1)
+    radii = 0.5*(range_vals[:,1] - range_vals[:,0]).reshape(-1,1)
+
+    X0 = radii*rand_init() + centers # random initial conditions
+    X = X0
+    Xref = radii*rand_init() + centers # random final conditions
+
+    T_range = np.array(([5,10]))
+    T = np.random.rand()*(T_range[1] - T_range[0]) + T_range[0] # random final time
+
+# Time step size
+h = 0.0025
+step_sizes = np.array(([h]))
 
 # Initial Control
 max_thrust = 5000
@@ -62,20 +93,15 @@ U = U0
 # Bound on Control
 Ubound = np.array(([max_thrust], [max_torque]))
 
-# Reference tracking state
-xref = 1; yref = 0; angref = 0;
-vxref = 0; vyref = 0; omegaref = 0;
-Xref = np.array(([xref],[yref],[angref],\
-    [vxref],[vyref],[omegaref])) # reference state
-
-# Total time and time steps size
-T = 5
-h = 0.0025
-step_sizes = np.array(([h]))
-
 # Solve optimal trajectory
 numColl = 100 # number of collocation points
-OPT_TRAJ = SolveTrajectory(X0, Xref, Ubound, Const, T, numColl, op_sys)
+opt_dict = SolveTrajectory(X0, Xref, Ubound, Const, T, numColl, op_sys)
+if opt_dict['feasible'] == False:
+    # abort
+    print('Aborting without creating files.')
+    exit()
+
+OPT_TRAJ = opt_dict['traj']
 opt_x      = np.array(OPT_TRAJ[:,0])
 opt_y      = np.array(OPT_TRAJ[:,1])
 opt_ang    = np.array(OPT_TRAJ[:,2])
@@ -154,10 +180,10 @@ y_arr[j+1] = X[1]
 ang_arr[j+1] = X[2]
 u0_arr[j+1] = U[0]  # Thrust
 u1_arr[j+1] = U[1]  # Torque
-t_arr[j+1] = h*j
+t_arr[j+1] = h*(j+1)
 
 # Generate trajectory data files (csv and readme)
-if traj_data_readme == 1:
+if traj_data_generate == 1:
     TrajFiles(t_arr,x_arr,y_arr,ang_arr,u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,h)
 
 # Visualizations
@@ -166,37 +192,39 @@ fd = os.open('/dev/null',os.O_WRONLY)
 os.dup2(fd,2)
 
 # Make plot of trajectory
-print('Creating plot...')
-print()
+if make_plots == 1:
+    print('Creating plot...')
+    print()
 
-SMALL_SIZE = 12
-MEDIUM_SIZE = 14
-BIGGER_SIZE = 16
+    SMALL_SIZE = 12
+    MEDIUM_SIZE = 14
+    BIGGER_SIZE = 16
 
-plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+    plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+    plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+    plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+    plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+    plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
-plt.plot(x_arr,y_arr + 0.75,'k:',label="sim trajectory")
-plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,'g',label="opt trajectory")
-plt.plot(x_arr[0],y_arr[0]+0.75,'bo',label="start point")
-plt.legend()
-plt.xlabel("x position (m)")
-plt.ylabel("y position (m)")
-plt.axis("equal")
+    plt.plot(x_arr,y_arr + 0.75,'k:',label="sim trajectory")
+    plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,'g',label="opt trajectory")
+    plt.plot(x_arr[0],y_arr[0]+0.75,'bo',label="start point")
+    plt.legend()
+    plt.xlabel("x position (m)")
+    plt.ylabel("y position (m)")
+    plt.axis("equal")
 
-plt.figure()
-plt.plot(t_arr,ang_arr,'k:',label="sim trajectory")
-plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],'g',label="opt trajectory")
-plt.plot(t_arr[0],ang_arr[0],'bo',label="start point")
-plt.legend()
-plt.xlabel("time (s)")
-plt.ylabel("angle (rad)")
-plt.show()
+    plt.figure()
+    plt.plot(t_arr,ang_arr,'k:',label="sim trajectory")
+    plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],'g',label="opt trajectory")
+    plt.plot(t_arr[0],ang_arr[0],'bo',label="start point")
+    plt.legend()
+    plt.xlabel("time (s)")
+    plt.ylabel("angle (rad)")
+    plt.show()
 
 # Create a movie of the simulation:
-# VisualizeLander(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)
+if gen_mov == 1:
+    VisualizeLander(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)

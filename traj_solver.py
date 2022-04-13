@@ -1,5 +1,6 @@
 from __future__ import division
 import pyomo.environ as pyo
+from pyomo.opt import SolverStatus, TerminationCondition
 import numpy as np
 from create_files import GenerateDAT
 
@@ -125,12 +126,23 @@ def SolveTrajectory(INIT_STATE, REF_STATE, U_BOUND, CONSTANTS, T, numColl, op_sy
 
     ## -------------------------------------------- ##
 
-    # compute a solution using ipopt for nonlinear optimization
+    # Compute a solution using ipopt for nonlinear optimization
     if op_sys == 'linux':
         solver_exe='~/Software/ipopt_binary/ipopt'
         results = pyo.SolverFactory('ipopt',executable=solver_exe).solve(instance)
     elif op_sys == 'mac':
         results = pyo.SolverFactory('ipopt').solve(instance)
+
+    # Check for infeasability
+    if (results.solver.status == SolverStatus.ok) and (results.solver.termination_condition == TerminationCondition.optimal):
+        print('Feasible solution found')
+        feasible = True
+    elif (results.solver.termination_condition == TerminationCondition.infeasible):
+        print('No feasable solution found')
+        feasible = False
+    else:
+        # Something else is wrong
+        print('Solver Status: ',  result.solver.status)
 
     #instance.pprint()
     STATES = np.zeros((len(instance.x),6))
@@ -152,4 +164,5 @@ def SolveTrajectory(INIT_STATE, REF_STATE, U_BOUND, CONSTANTS, T, numColl, op_sy
             TIMES[i] = 0
         time_prev = TIMES[i]
     #print(np.hstack((STATES, CONTROLS, TIMES)))
-    return np.hstack((STATES, CONTROLS, TIMES))
+    OPT_TRAJ = np.hstack((STATES, CONTROLS, TIMES))
+    return {'feasible':feasible,'traj':OPT_TRAJ}
