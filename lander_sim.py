@@ -33,10 +33,10 @@ def F(STATE,CONTROL,CONSTANTS):
 
 # meta data
 op_sys = "mac" # options are "linux" or "mac"
-gen_mov  = 0     # generate movie on completion? 1=yes, 0=no
-open_mov = 0     # open movie on completion? 1=yes, 0=no
-traj_data_generate = 1 # generate trajectory csv and readme? 1=yes, 0=no
-make_plots = 0   # generate trajectory and control plots? 1=yes, 0=no
+gen_mov  = 1     # generate movie on completion? 1=yes, 0=no
+open_mov = 1     # open movie on completion? 1=yes, 0=no
+traj_data_generate = 0 # generate trajectory csv and readme? 1=yes, 0=no
+make_plots = 1   # generate trajectory and control plots? 1=yes, 0=no
 rand_BC = 1      # Random boundary conditions? 1=yes, 0=no
 file_name = "OPT_controller008" # movie file name
 fps = 15 # frames per second of movie
@@ -48,6 +48,7 @@ g = 9.8; m = 10 # gravity and mass
 rotI = (13/12)*m
 Const = np.array(([bv,bo,m,g,rotI])) # order matters with these consts
 
+# Set boundary conditions and final time
 if rand_BC != 1:
     # Not random boundary conditions
     # Total time in seconds
