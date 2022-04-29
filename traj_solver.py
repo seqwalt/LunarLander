@@ -7,7 +7,7 @@ from create_files import GenerateDAT
 def SolveTrajectory(INIT_STATE, REF_STATE, U_BOUND, CONSTANTS, T, numColl, op_sys):
     print()
     print('Solving optimal trajectory...')
-    print()
+
     x0,y0,ang0,vx0,vy0,omega0 = INIT_STATE
     x0=float(x0); y0=float(y0); ang0=float(ang0)
     vx0=float(vx0); vy0=float(vy0); omega0=float(omega0)
@@ -136,6 +136,7 @@ def SolveTrajectory(INIT_STATE, REF_STATE, U_BOUND, CONSTANTS, T, numColl, op_sy
     # Check for infeasability
     if (results.solver.status == SolverStatus.ok) and (results.solver.termination_condition == TerminationCondition.optimal):
         print('Feasible solution found')
+        print('')
         feasible = True
     elif (results.solver.termination_condition == TerminationCondition.infeasible):
         print('No feasable solution found')

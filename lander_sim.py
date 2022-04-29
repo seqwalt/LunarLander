@@ -33,10 +33,10 @@ def F(STATE,CONTROL,CONSTANTS):
 
 # meta data
 op_sys = "mac" # options are "linux" or "mac"
-gen_mov  = 1     # generate movie on completion? 1=yes, 0=no
+gen_mov  = 0     # generate movie on completion? 1=yes, 0=no
 open_mov = 1     # open movie on completion? 1=yes, 0=no
-traj_data_generate = 0 # generate trajectory csv and readme? 1=yes, 0=no
-make_plots = 1   # generate trajectory and control plots? 1=yes, 0=no
+traj_data_generate = 1 # generate trajectory csv and readme? 1=yes, 0=no
+make_plots = 0   # generate trajectory and control plots? 1=yes, 0=no
 rand_BC = 1      # Random boundary conditions? 1=yes, 0=no
 file_name = "OPT_controller008" # movie file name
 fps = 15 # frames per second of movie
@@ -135,6 +135,9 @@ X_interp = np.hstack((x_interp(t_steps),y_interp(t_steps),\
 x_arr = np.zeros((int(T/h)+1))
 y_arr = np.zeros((int(T/h)+1))
 ang_arr = np.zeros((int(T/h)+1))
+vx_arr = np.zeros((int(T/h)+1))
+vy_arr = np.zeros((int(T/h)+1))
+omega_arr = np.zeros((int(T/h)+1))
 u0_arr = np.zeros((int(T/h)+1))  # thrust array
 u1_arr = np.zeros((int(T/h)+1))  # torque array
 t_arr = np.zeros((int(T/h)+1))
@@ -161,9 +164,13 @@ for j in range(int(T/h)):
     U[0] = np.clip(U[0],0,max_thrust) # constrain thrust
     U[1] = np.clip(U[1],-max_torque,max_torque) # constrain torque
 
+    # Store data
     x_arr[j] = X[0]
     y_arr[j] = X[1]
     ang_arr[j] = X[2]
+    vx_arr[j] = X[3]
+    vy_arr[j] = X[4]
+    omega_arr[j] = X[5]
     u0_arr[j] = U[0]
     u1_arr[j] = U[1]
     t_arr[j] = h*j
@@ -176,16 +183,21 @@ for j in range(int(T/h)):
     k = (k1+2*k2+2*k3+k4)/6
     X = X + h*k
 
+# Store final time-step data
 x_arr[j+1] = X[0]
 y_arr[j+1] = X[1]
 ang_arr[j+1] = X[2]
+vx_arr[j+1] = X[3]
+vy_arr[j+1] = X[4]
+omega_arr[j+1] = X[5]
 u0_arr[j+1] = U[0]  # Thrust
 u1_arr[j+1] = U[1]  # Torque
 t_arr[j+1] = h*(j+1)
 
 # Generate trajectory data files (csv and readme)
 if traj_data_generate == 1:
-    TrajFiles(t_arr,x_arr,y_arr,ang_arr,u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,h)
+    TrajFiles(t_arr,x_arr,y_arr,ang_arr,vx_arr,vy_arr,omega_arr,\
+    u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,h)
 
 # Visualizations
     # Suppress GTK warning outputs

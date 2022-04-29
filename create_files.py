@@ -17,7 +17,9 @@ def GenerateDAT(h_list, filename):
     f.write(';')
 
 # Generate trajectory data csv and readme
-def TrajFiles(t_arr,x_arr,y_arr,ang_arr,u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,h):
+def TrajFiles(t_arr,x_arr,y_arr,ang_arr,vx_arr,vy_arr,omega_arr,\
+              u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,h):
+    print('Generating files...')
 
     # Find next file number to use
     max_filenum = -1
@@ -39,18 +41,22 @@ def TrajFiles(t_arr,x_arr,y_arr,ang_arr,u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,
     # and columns are of the forms:
     # {times, x, y, ang, thrust (i.e. u0), torque (i.e. u1)}
     csvname = 'trajdata_'+str_num+'.csv'
+    print('   '+csvname)
     if os.path.exists('traj_data/'+csvname):
         os.remove('traj_data/'+csvname)
     f = open('traj_data/'+csvname, 'w')
-    f.write('t,x,y,ang,thrust,torque\n')
+    f.write('t,x,y,ang,vx,vy,omega,thrust,torque\n')
 
     N = len(t_arr)
     for i in range(N):
-        f.write(str(t_arr[i])+','+str(x_arr[i])+','+str(y_arr[i])+','+str(ang_arr[i])+','+str(u0_arr[i])+','+str(u1_arr[i])+'\n')
+        f.write(str(t_arr[i])+','+str(x_arr[i])+','+str(y_arr[i])+','+str(ang_arr[i])+','\
+        +str(vx_arr[i])+','+str(vy_arr[i])+','+str(omega_arr[i])+','+str(u0_arr[i])+','+str(u1_arr[i])+'\n')
     f.close()
 
     # Generate trajectory readme with meta data
     txtname = 'readme_'+str_num+'.txt'
+    print('     '+txtname)
+    print('')
     f = open('traj_data/'+txtname, 'w')
     # Const,X0,Xref,U0,Ubound,T,h
     f.write('Readme for information about the simulation corresponding to '+csvname+'. \n')
