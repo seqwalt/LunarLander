@@ -5,7 +5,7 @@ from matplotlib.pyplot import figure
 from matplotlib.patches import Polygon
 import os
 
-def VisualizeLander(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
+def LanderMovie(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
 
     # Arguments are vectors over time
 

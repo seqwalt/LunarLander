@@ -5,7 +5,7 @@ from numpy import cos, sin, pi
 from matplotlib import pyplot as plt
 from traj_solver import SolveTrajectory
 from create_files import TrajFiles
-from lander_vis import VisualizeLander
+from lander_vis import LanderMovie
 # ----------
 # States: in SI units (Newtons; m/s; kg; etc.)
 # x = horizontal position; y = vertical position; ang = tilt angle
@@ -240,4 +240,4 @@ if make_plots == 1:
 
 # Create a movie of the simulation:
 if gen_mov == 1:
-    VisualizeLander(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)
+    LanderMovie(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)
