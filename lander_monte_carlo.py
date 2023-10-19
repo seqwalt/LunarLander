@@ -1,5 +1,4 @@
 import os
-import platform
 from scipy.interpolate import interp1d
 import numpy as np
 from numpy import cos, sin, pi
@@ -32,26 +31,25 @@ def F(STATE,CONTROL,CONSTANTS):
     vector = np.array(([f_x, f_y, f_ang, f_vx, f_vy, f_omega]))
     return vector.reshape(6,1)
 
-if platform.system() == "Linux":
-    OP_SYS = "linux"
-elif platform.system() == "Darwin":
-    OP_SYS = "mac"
 # meta data
-op_sys = OP_SYS
+op_sys = "linux" # options are "linux" or "mac"
+closed_loop = 0  # apply heuristic closed loop controller in addition to open-loop optimal control values 1=yes, 0=no
+monte_carlo = 1  # do Monte Carlo sim? 1=yes, 0=no
+num_mc_sims = 20  # number of Monte Carlo simulation samples
 gen_mov  = 0     # generate movie on completion? 1=yes, 0=no
 open_mov = 1     # open movie on completion? 1=yes, 0=no
 traj_data_generate = 0 # generate trajectory csv and readme? 1=yes, 0=no
 make_plots = 1   # generate trajectory and control plots? 1=yes, 0=no
-rand_BC = 1      # Random boundary conditions? 1=yes, 0=no
+rand_BC = 0      # Random boundary conditions? 1=yes, 0=no
 file_name = "OPT_controller008" # movie file name
 fps = 15 # frames per second of movie
 meta_data = (op_sys, open_mov, file_name, fps)
 
 # Constants
 bv = 5; bo = 11 # b_v and b_{\omega}
-g = 9.8; m = 10 # gravity and mass
+g = 2.0; m = 10.0 # gravity and mass
 rotI = (13/12)*m
-Const = np.array(([bv,bo,m,g,rotI])) # order matters with these consts
+Const = np.array((bv,bo,m,g,rotI)).reshape(-1,1) # order matters with these consts
 
 # Set boundary conditions and final time
 if rand_BC != 1:
@@ -77,15 +75,18 @@ else:
     centers = np.mean(range_vals,1).reshape(-1,1)
     radii = 0.5*(range_vals[:,1] - range_vals[:,0]).reshape(-1,1)
 
-    X0 = radii*rand_init() + centers # random initial conditions
+    X0 = radii*rand_init () + centers # random initial conditions
     X = X0
-    Xref = radii*rand_init() + centers # random final conditions
+    Xref = radii*rand_init () + centers # random final conditions
 
     T_range = np.array(([5,10]))
     T = np.random.rand()*(T_range[1] - T_range[0]) + T_range[0] # random final time
 
 # Time step size
-h = 0.0025
+if monte_carlo == 1:
+    h = 0.01 # larger time step for faster computation
+else:
+    h = 0.0025
 step_sizes = np.array(([h]))
 
 # Initial Control
@@ -152,66 +153,56 @@ print('Running simulation...')
 print()
 
 # Runge-Kutta 4 simulation
-for j in range(int(T/h)):
-    # gain matrix for closed-loop control
-    # only works for small angles
-    if abs(X[2]) < pi/2.5:
-        a = 1
-    else:
-        a = 0
-    #a = 0
-    K = a*np.array(([0, -60*m*g*(2+cos(X[2][0]-pi)), 0, 0, -80*m*g*(2+cos(X[2][0]-pi)), 0],\
-                  [8, 0, -75, 10, 0, -40]))
-    U_opt = U_interp[j,:].reshape(-1,1)
-    Xref_new = X_interp[j,:].reshape(-1,1)
-    U = K@(X-Xref_new) + U_opt
-    #U = U_opt
-    U[0] = np.clip(U[0],0,max_thrust) # constrain thrust
-    U[1] = np.clip(U[1],-max_torque,max_torque) # constrain torque
+def RK4_sim(X_, Const_):
+    for j in range(int(T/h)):
+        U_opt = U_interp[j,:].reshape(-1,1)
+        if closed_loop == 1:
+            # gain matrix for closed-loop control
+            # only works for small angles
+            a = int(abs(X_[2]) < pi/2.5) # a = 1 if angle is small enough, 1 otherwise
+            K = a*np.array(([0, -60*m*g*(2+cos(X_[2][0]-pi)), 0, 0, -80*m*g*(2+cos(X_[2][0]-pi)), 0],\
+                          [8, 0, -75, 10, 0, -40]))
+            Xref_new = X_interp[j,:].reshape(-1,1)
+            U = K@(X_-Xref_new) + U_opt
+        else:
+            U = U_opt
+        U[0] = np.clip(U[0],0,max_thrust) # constrain thrust
+        U[1] = np.clip(U[1],-max_torque,max_torque) # constrain torque
 
-    # Store data
-    x_arr[j] = X[0]
-    y_arr[j] = X[1]
-    ang_arr[j] = X[2]
-    vx_arr[j] = X[3]
-    vy_arr[j] = X[4]
-    omega_arr[j] = X[5]
-    u0_arr[j] = U[0]
-    u1_arr[j] = U[1]
-    t_arr[j] = h*j
+        # Store data
+        x_arr[j] = X_[0]
+        y_arr[j] = X_[1]
+        ang_arr[j] = X_[2]
+        vx_arr[j] = X_[3]
+        vy_arr[j] = X_[4]
+        omega_arr[j] = X_[5]
+        u0_arr[j] = U[0]
+        u1_arr[j] = U[1]
+        t_arr[j] = h*j
 
-    # RK-4
-    k1 = F(X,U,Const)
-    k2 = F(X+h/2*k1,U,Const)
-    k3 = F(X+h/2*k2,U,Const)
-    k4 = F(X+h*k3,U,Const)
-    k = (k1+2*k2+2*k3+k4)/6
-    X = X + h*k
+        # RK-4
+        k1 = F(X_,U,Const_)
+        k2 = F(X_+h/2*k1,U,Const_)
+        k3 = F(X_+h/2*k2,U,Const_)
+        k4 = F(X_+h*k3,U,Const_)
+        k = (k1+2*k2+2*k3+k4)/6
+        X_ = X_ + h*k
 
-# Store final time-step data
-x_arr[j+1] = X[0]
-y_arr[j+1] = X[1]
-ang_arr[j+1] = X[2]
-vx_arr[j+1] = X[3]
-vy_arr[j+1] = X[4]
-omega_arr[j+1] = X[5]
-u0_arr[j+1] = U[0]  # Thrust
-u1_arr[j+1] = U[1]  # Torque
-t_arr[j+1] = h*(j+1)
+    # Store final time-step data
+    x_arr[j+1] = X_[0]
+    y_arr[j+1] = X_[1]
+    ang_arr[j+1] = X_[2]
+    vx_arr[j+1] = X_[3]
+    vy_arr[j+1] = X_[4]
+    omega_arr[j+1] = X_[5]
+    u0_arr[j+1] = U[0]  # Thrust
+    u1_arr[j+1] = U[1]  # Torque
+    t_arr[j+1] = h*(j+1)
 
-# Generate trajectory data files (csv and readme)
-if traj_data_generate == 1:
-    TrajFiles(t_arr,x_arr,y_arr,ang_arr,vx_arr,vy_arr,omega_arr,\
-    u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,h)
+    return x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr
 
-# Visualizations
-    # Suppress GTK warning outputs
-fd = os.open('/dev/null',os.O_WRONLY)
-os.dup2(fd,2)
-
-# Make plot of trajectory
-if make_plots == 1:
-    print('Creating plot...')
+def init_MonteCarlo_plot():
+    print('Creating Monte Carlo plot...')
     print()
 
     SMALL_SIZE = 12
@@ -225,24 +216,85 @@ if make_plots == 1:
     plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
     plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+    return plt
 
-    plt.plot(x_arr,y_arr + 0.75,'k:',label="sim trajectory")
-    plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,'g',label="opt trajectory")
+def plot_MonteCarlo_sample(plt, x_arr, y_arr):
+    plt.plot(x_arr,y_arr + 0.75,'k',alpha=0.2)
+
+def finish_MonteCarlo_plot(plt, x_arr, y_arr):
+    plt.plot(x_arr,y_arr + 0.75,'k',label="Monte Carlo samples",alpha=0.2)
+    plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,'g:',label="opt trajectory", linewidth = 3)
     plt.plot(x_arr[0],y_arr[0]+0.75,'bo',label="start point")
     plt.legend()
     plt.xlabel("x position (m)")
     plt.ylabel("y position (m)")
     plt.axis("equal")
-
-    plt.figure()
-    plt.plot(t_arr,ang_arr,'k:',label="sim trajectory")
-    plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],'g',label="opt trajectory")
-    plt.plot(t_arr[0],ang_arr[0],'bo',label="start point")
-    plt.legend()
-    plt.xlabel("time (s)")
-    plt.ylabel("angle (rad)")
     plt.show()
 
-# Create a movie of the simulation:
-if gen_mov == 1:
-    LanderMovie(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)
+# Suppress GTK warning outputs
+fd = os.open('/dev/null',os.O_WRONLY)
+os.dup2(fd,2)
+
+# Monte Carlo sim and plotting
+if monte_carlo == 1:
+    # Injected noise
+    # bv = 5; bo = 11 # b_v and b_{\omega}
+    # g = 2.0; m = 10.0 # gravity and mass
+    # rotI = (13/12)*m
+    rand_init = lambda : 2*(np.random.rand(5,1) - 0.5) # vals from -1 to 1
+    #                       bv,        bo,     m,   g,     rotI
+    noise_range = np.array((bv*0.02, bo*0.02, 0.2, 0.1, (13/12)*0.2)).reshape(-1,1)
+
+    plt = init_MonteCarlo_plot()
+    for i in range(0, num_mc_sims):
+        noise = noise_range*rand_init()
+        x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr = RK4_sim(X, Const + noise)
+        plot_MonteCarlo_sample(plt, x_arr, y_arr)
+    finish_MonteCarlo_plot(plt, x_arr, y_arr)
+else:
+    x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr = RK4_sim(X, Const)
+
+    # Generate trajectory data files (csv and readme)
+    if traj_data_generate == 1:
+        TrajFiles(t_arr,x_arr,y_arr,ang_arr,vx_arr,vy_arr,omega_arr,\
+        u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,h)
+
+    # Visualizations
+
+    # Make plot of trajectory
+    if make_plots == 1:
+        print('Creating plot...')
+        print()
+
+        SMALL_SIZE = 12
+        MEDIUM_SIZE = 14
+        BIGGER_SIZE = 16
+
+        plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
+        plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+        plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
+        plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+        plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
+        plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
+        plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
+
+        plt.plot(x_arr,y_arr + 0.75,'k:',label="sim trajectory")
+        plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,'g',label="opt trajectory")
+        plt.plot(x_arr[0],y_arr[0]+0.75,'bo',label="start point")
+        plt.legend()
+        plt.xlabel("x position (m)")
+        plt.ylabel("y position (m)")
+        plt.axis("equal")
+
+        plt.figure()
+        plt.plot(t_arr,ang_arr,'k:',label="sim trajectory")
+        plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],'g',label="opt trajectory")
+        plt.plot(t_arr[0],ang_arr[0],'bo',label="start point")
+        plt.legend()
+        plt.xlabel("time (s)")
+        plt.ylabel("angle (rad)")
+        plt.show()
+
+    # Create a movie of the simulation:
+    if gen_mov == 1:
+        LanderMovie(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)

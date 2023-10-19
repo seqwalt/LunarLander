@@ -110,7 +110,7 @@ def LanderImage(X,Y,ANG,THRUST,TORQUE,TIME,filename,Num_landers):
     plt.close()
 
 ### Generate image. Python argument is filename of trajectory data
-
+'''
 filename = sys.argv[1]
 num_landers = int(sys.argv[2])
 print("File:", filename)
@@ -130,7 +130,7 @@ TORQUE = DATA[:,-1]
 LanderImage(X,Y,ANG,THRUST,TORQUE,TIME,filename,num_landers)
 display_str = 'eog figures/image_'+filename[-6:-4]+'.png'
 os.system(display_str)
-###
+'''
 
 def LanderMovie(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
 
