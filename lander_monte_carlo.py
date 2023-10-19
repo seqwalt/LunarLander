@@ -1,11 +1,12 @@
 import os
+import time
+import platform
 from scipy.interpolate import interp1d
 import numpy as np
 from numpy import cos, sin, pi
 from matplotlib import pyplot as plt
 from traj_solver import SolveTrajectory
-from create_files import TrajFiles
-from lander_vis import LanderMovie
+
 # ----------
 # States: in SI units (Newtons; m/s; kg; etc.)
 # x = horizontal position; y = vertical position; ang = tilt angle
@@ -19,23 +20,41 @@ from lander_vis import LanderMovie
 # ----------
 
 def F(STATE,CONTROL,CONSTANTS):
-    x,y,ang,vx,vy,omega = STATE
-    thrust,torque = CONTROL
-    bv,bo,m,g,rotI = CONSTANTS
+    x = STATE[0,:]
+    y = STATE[1,:]
+    ang = STATE[2,:]
+    vx = STATE[3,:]
+    vy = STATE[4,:]
+    omega = STATE[5,:]
+    thrust = CONTROL[0,:]
+    torque = CONTROL[1,:]
+    bv = CONSTANTS[0,:]
+    bo = CONSTANTS[1,:]
+    m = CONSTANTS[2,:]
+    g = CONSTANTS[3,:]
+    rotI = CONSTANTS[4,:]
 
     f_x  = vx; f_y = vy; f_ang = omega  # velocities
     f_vx = -bv*vx/m + thrust*sin(-ang)/m    # accelerations
     f_vy = -(g + bv*vy/m) + thrust*cos(ang)/m
     f_omega  = -bo*omega/rotI + torque/rotI
 
-    vector = np.array(([f_x, f_y, f_ang, f_vx, f_vy, f_omega]))
-    return vector.reshape(6,1)
+    f_x  = f_x.reshape(1,-1); f_y = f_y.reshape(1,-1); f_ang = f_ang.reshape(1,-1)
+    f_vx = f_vx.reshape(1,-1); f_vy = f_vy.reshape(1,-1); f_omega  = f_omega.reshape(1,-1)
 
+    vectors = np.vstack((f_x, f_y, f_ang, f_vx, f_vy, f_omega))
+    return vectors
+
+if platform.system() == "Linux":
+    OP_SYS = "linux"
+elif platform.system() == "Darwin":
+    OP_SYS = "mac"
 # meta data
-op_sys = "linux" # options are "linux" or "mac"
+op_sys = OP_SYS
+monte_carlo_for_loop = 0 # do for-loop monte carlo sim to compare speed to vectorized? 1=yes, 0=no
 closed_loop = 0  # apply heuristic closed loop controller in addition to open-loop optimal control values 1=yes, 0=no
-monte_carlo = 1  # do Monte Carlo sim? 1=yes, 0=no
-num_mc_sims = 20  # number of Monte Carlo simulation samples
+num_mc_sims = 1000 # number of Monte Carlo simulations
+mc_uncert_scl = 1.0 # scale the monte carlo uncertainties (1 is nominal)
 gen_mov  = 0     # generate movie on completion? 1=yes, 0=no
 open_mov = 1     # open movie on completion? 1=yes, 0=no
 traj_data_generate = 0 # generate trajectory csv and readme? 1=yes, 0=no
@@ -83,10 +102,7 @@ else:
     T = np.random.rand()*(T_range[1] - T_range[0]) + T_range[0] # random final time
 
 # Time step size
-if monte_carlo == 1:
-    h = 0.01 # larger time step for faster computation
-else:
-    h = 0.0025
+h = 0.0025
 step_sizes = np.array(([h]))
 
 # Initial Control
@@ -137,47 +153,82 @@ X_interp = np.hstack((x_interp(t_steps),y_interp(t_steps),\
            ang_interp(t_steps),vx_interp(t_steps),vy_interp(t_steps),\
            omega_interp(t_steps)))
 
-# Initialize data arrays
-x_arr = np.zeros((int(T/h)+1))
-y_arr = np.zeros((int(T/h)+1))
-ang_arr = np.zeros((int(T/h)+1))
-vx_arr = np.zeros((int(T/h)+1))
-vy_arr = np.zeros((int(T/h)+1))
-omega_arr = np.zeros((int(T/h)+1))
-u0_arr = np.zeros((int(T/h)+1))  # thrust array
-u1_arr = np.zeros((int(T/h)+1))  # torque array
-t_arr = np.zeros((int(T/h)+1))
+# Monte Carlo Runge-Kutta 4 simulation function
+# Using numpy vectorization, each step of the RK4 advances all Monte Carlo simulations
+def MC_RK4_sim(X_init, Const_true, num_sims):
+    # Initialize data arrays
+    x_arr = np.zeros((int(T/h)+1, num_sims))
+    y_arr = np.zeros((int(T/h)+1, num_sims))
+    ang_arr = np.zeros((int(T/h)+1, num_sims))
+    vx_arr = np.zeros((int(T/h)+1, num_sims))
+    vy_arr = np.zeros((int(T/h)+1, num_sims))
+    omega_arr = np.zeros((int(T/h)+1, num_sims))
+    u0_arr = np.zeros((int(T/h)+1, num_sims))  # thrust array
+    u1_arr = np.zeros((int(T/h)+1, num_sims))  # torque array
+    t_arr = np.zeros((int(T/h)+1))
 
-# Run simulation
-print('Running simulation...')
-print()
+    K_init = np.ones((num_sims, 2, 6))
+    K_init[:,0,0] *= 0
+    K_init[:,0,2] *= 0
+    K_init[:,0,3] *= 0
+    K_init[:,0,5] *= 0
+    K_init[:,1,0] *= 8
+    K_init[:,1,1] *= 0
+    K_init[:,1,2] *= -75
+    K_init[:,1,3] *= 10
+    K_init[:,1,4] *= 0
+    K_init[:,1,5] *= -40
 
-# Runge-Kutta 4 simulation
-def RK4_sim(X_, Const_):
+    # Lambdas/Functions
+    tensor_ones = lambda A : np.ones((num_sims, A.shape[0], A.shape[1]))
+    def tensor2matrix(A_tensor):
+        # input shape: (m x n x 1), output shape: (n x m)
+        assert(A_tensor.shape[2] == 1)
+        return A_tensor.reshape(A_tensor.shape[0],A_tensor.shape[1]).T
+    #tensor2matrix = lambda A_tensor : A_tensor.reshape(A_tensor.shape[0],A_tensor.shape[1]).T   # input shape: (m x n x 1), output shape: (n x m)
+    matrix2tensor = lambda A_matrix : A_matrix.T.reshape(A_matrix.shape[1],A_matrix.shape[0],1) # input shape: (n x m), output shape: (m x n x 1)
+
+    # Init tensor state matrix
+    X_init = X_init.reshape(-1,1)
+    X_tensor = X_init * tensor_ones(X_init) # X_tensor.shape = (num_sims, 6, 1)
+
+    # Inject noise
+    rand_init = lambda : 2*(np.random.rand(5,num_sims) - 0.5) # vals from -1 to 1
+    noise_range = mc_uncert_scl*np.array((bv*0.05, bo*0.05, m*0.02, g*0.02, rotI*0.02)).reshape(-1,1)
+    noise = noise_range*rand_init()
+    Const_ = Const_true * np.ones((5,num_sims)) + noise
+
     for j in range(int(T/h)):
         U_opt = U_interp[j,:].reshape(-1,1)
+        U_opt = U_opt * tensor_ones(U_opt) # U_opt.shape = (num_sims, 2, 1)
+        K = K_init
         if closed_loop == 1:
             # gain matrix for closed-loop control
             # only works for small angles
-            a = int(abs(X_[2]) < pi/2.5) # a = 1 if angle is small enough, 1 otherwise
-            K = a*np.array(([0, -60*m*g*(2+cos(X_[2][0]-pi)), 0, 0, -80*m*g*(2+cos(X_[2][0]-pi)), 0],\
-                          [8, 0, -75, 10, 0, -40]))
+            ang_small = abs(X_tensor[:,2,0]) < pi/2.5 # a = 1 if angle is small enough, 1 otherwise
+            K[:,0,1] = -60*m*g*(2+cos(X_tensor[:,2,0]-pi))
+            K[:,0,4] = -80*m*g*(2+cos(X_tensor[:,2,0]-pi))
+            K[ang_small==False,:,:] *= 0 # set K matrices that corresond to false elements in ang_small, to zero
             Xref_new = X_interp[j,:].reshape(-1,1)
-            U = K@(X_-Xref_new) + U_opt
+            U_tensor = K@(X_tensor-Xref_new) + U_opt # U_tensor.shape = (num_sims, 2, 1)
         else:
-            U = U_opt
-        U[0] = np.clip(U[0],0,max_thrust) # constrain thrust
-        U[1] = np.clip(U[1],-max_torque,max_torque) # constrain torque
+            U_tensor = U_opt
+
+        X_ = tensor2matrix(X_tensor)
+        U = tensor2matrix(U_tensor)
+
+        U[0,:] = np.clip(U[0,:],0,max_thrust) # constrain thrust
+        U[1,:] = np.clip(U[1,:],-max_torque,max_torque) # constrain torque
 
         # Store data
-        x_arr[j] = X_[0]
-        y_arr[j] = X_[1]
-        ang_arr[j] = X_[2]
-        vx_arr[j] = X_[3]
-        vy_arr[j] = X_[4]
-        omega_arr[j] = X_[5]
-        u0_arr[j] = U[0]
-        u1_arr[j] = U[1]
+        x_arr[j,:] = X_[0,:]
+        y_arr[j,:] = X_[1,:]
+        ang_arr[j,:] = X_[2,:]
+        vx_arr[j,:] = X_[3,:]
+        vy_arr[j,:] = X_[4,:]
+        omega_arr[j,:] = X_[5,:]
+        u0_arr[j,:] = U[0,:]
+        u1_arr[j,:] = U[1,:]
         t_arr[j] = h*j
 
         # RK-4
@@ -187,22 +238,79 @@ def RK4_sim(X_, Const_):
         k4 = F(X_+h*k3,U,Const_)
         k = (k1+2*k2+2*k3+k4)/6
         X_ = X_ + h*k
+        X_tensor = matrix2tensor(X_)
 
     # Store final time-step data
-    x_arr[j+1] = X_[0]
-    y_arr[j+1] = X_[1]
-    ang_arr[j+1] = X_[2]
-    vx_arr[j+1] = X_[3]
-    vy_arr[j+1] = X_[4]
-    omega_arr[j+1] = X_[5]
-    u0_arr[j+1] = U[0]  # Thrust
-    u1_arr[j+1] = U[1]  # Torque
+    x_arr[j+1,:] = X_[0,:]
+    y_arr[j+1,:] = X_[1,:]
+    ang_arr[j+1,:] = X_[2,:]
+    vx_arr[j+1,:] = X_[3,:]
+    vy_arr[j+1,:] = X_[4,:]
+    omega_arr[j+1,:] = X_[5,:]
+    u0_arr[j+1,:] = U[0,:]  # Thrust
+    u1_arr[j+1,:] = U[1,:]  # Torque
     t_arr[j+1] = h*(j+1)
 
     return x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr
 
-def init_MonteCarlo_plot():
-    print('Creating Monte Carlo plot...')
+
+# Run Monte Carlo simulation (vectorized)
+print('Running simulations with vectorization...')
+start = time.time()
+x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr = MC_RK4_sim(X, Const, num_mc_sims)
+end = time.time()
+print('Finished '+ str(num_mc_sims) +' simulations in ' + "{:.3f}".format(end - start) + ' seconds')
+print()
+# Processing
+# TODO get euclidean distance from opt traj to Monte Carlo sims at each time step
+#  then compute standard deviation at each time step and plot over a sample of sims.
+
+# Run Monte Carlo simulation (for loop)
+# for time-comparison only (no stored data)
+if monte_carlo_for_loop == 1:
+    # Injected noise
+    rand_init = lambda : 2*(np.random.rand(5,1) - 0.5) # vals from -1 to 1
+    noise_range = np.array((bv*0.05, bo*0.02, m*0.02, g*0.02, rotI*0.02)).reshape(-1,1)
+    print('Running simulations with for loop...')
+    start = time.time()
+    for i in range(0, num_mc_sims):
+        noise = noise_range*rand_init()
+        Const_n = Const + noise
+        # RK4
+        X_ = X
+        for j in range(int(T/h)):
+            U_opt = U_interp[j,:].reshape(-1,1)
+            if closed_loop == 1:
+                a = abs(X_[2]) < pi/2.5
+                K = a*np.array(([0, -60*m*g*(2+cos(X_[2][0]-pi)), 0, 0, -80*m*g*(2+cos(X_[2][0]-pi)), 0], [8, 0, -75, 10, 0, -40]))
+                Xref_new = X_interp[j,:].reshape(-1,1)
+                U = K@(X_-Xref_new) + U_opt
+            else:
+                U = U_opt
+            U[0] = np.clip(U[0],0,max_thrust) # constrain thrust
+            U[1] = np.clip(U[1],-max_torque,max_torque) # constrain torque
+            # RK-4
+            k1 = F(X_,U,Const_n)
+            k2 = F(X_+h/2*k1,U,Const_n)
+            k3 = F(X_+h/2*k2,U,Const_n)
+            k4 = F(X_+h*k3,U,Const_n)
+            k = (k1+2*k2+2*k3+k4)/6
+            X_ = X_ + h*k
+    end = time.time()
+    print('Finished '+ str(num_mc_sims) +' simulations in ' + "{:.3f}".format(end - start) + ' seconds')
+    print()
+
+# Plot using data from vectorized Monte Carlo sims
+if make_plots == 1:
+    # Suppress GTK warning outputs
+    # CAUTION: all error messages suppressed
+    #'''
+    # Comment out for debugging
+    fd = os.open('/dev/null',os.O_WRONLY)
+    os.dup2(fd,2)
+    #'''
+
+    print('Creating plots...')
     print()
 
     SMALL_SIZE = 12
@@ -216,85 +324,30 @@ def init_MonteCarlo_plot():
     plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
     plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-    return plt
 
-def plot_MonteCarlo_sample(plt, x_arr, y_arr):
-    plt.plot(x_arr,y_arr + 0.75,'k',alpha=0.2)
+    sim_alpha = 0.05
+    opt_line = 'y:'
+    sim_line = 'k'
+    strt_mrkr = 'bo'
+    opt_wid = 3
 
-def finish_MonteCarlo_plot(plt, x_arr, y_arr):
-    plt.plot(x_arr,y_arr + 0.75,'k',label="Monte Carlo samples",alpha=0.2)
-    plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,'g:',label="opt trajectory", linewidth = 3)
-    plt.plot(x_arr[0],y_arr[0]+0.75,'bo',label="start point")
+    # Position
+    plt.plot(x_arr, y_arr,sim_line,alpha=sim_alpha)
+    plt.plot(x_arr[:,0], y_arr[:,0],sim_line,label="sim trajectories",alpha=sim_alpha)
+    plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1],opt_line,label="opt trajectory",linewidth=opt_wid)
+    plt.plot(x_arr[0,0],y_arr[0,0],strt_mrkr,label="start point")
     plt.legend()
     plt.xlabel("x position (m)")
     plt.ylabel("y position (m)")
     plt.axis("equal")
+
+    # Angle
+    # plt.figure()
+    # plt.plot(t_arr,ang_arr,sim_line,alpha=sim_alpha)
+    # plt.plot(t_arr,ang_arr[:,0],sim_line,label="sim trajectory",alpha=sim_alpha)
+    # plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],opt_line,label="opt trajectory",linewidth=opt_wid)
+    # plt.plot(t_arr[0],ang_arr[0,0],strt_mrkr,label="start point")
+    # plt.legend()
+    # plt.xlabel("time (s)")
+    # plt.ylabel("angle (rad)")
     plt.show()
-
-# Suppress GTK warning outputs
-fd = os.open('/dev/null',os.O_WRONLY)
-os.dup2(fd,2)
-
-# Monte Carlo sim and plotting
-if monte_carlo == 1:
-    # Injected noise
-    # bv = 5; bo = 11 # b_v and b_{\omega}
-    # g = 2.0; m = 10.0 # gravity and mass
-    # rotI = (13/12)*m
-    rand_init = lambda : 2*(np.random.rand(5,1) - 0.5) # vals from -1 to 1
-    #                       bv,        bo,     m,   g,     rotI
-    noise_range = np.array((bv*0.02, bo*0.02, 0.2, 0.1, (13/12)*0.2)).reshape(-1,1)
-
-    plt = init_MonteCarlo_plot()
-    for i in range(0, num_mc_sims):
-        noise = noise_range*rand_init()
-        x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr = RK4_sim(X, Const + noise)
-        plot_MonteCarlo_sample(plt, x_arr, y_arr)
-    finish_MonteCarlo_plot(plt, x_arr, y_arr)
-else:
-    x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr = RK4_sim(X, Const)
-
-    # Generate trajectory data files (csv and readme)
-    if traj_data_generate == 1:
-        TrajFiles(t_arr,x_arr,y_arr,ang_arr,vx_arr,vy_arr,omega_arr,\
-        u0_arr,u1_arr,Const,X0,Xref,U0,Ubound,T,h)
-
-    # Visualizations
-
-    # Make plot of trajectory
-    if make_plots == 1:
-        print('Creating plot...')
-        print()
-
-        SMALL_SIZE = 12
-        MEDIUM_SIZE = 14
-        BIGGER_SIZE = 16
-
-        plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-        plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
-        plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
-        plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-        plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
-        plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
-        plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
-
-        plt.plot(x_arr,y_arr + 0.75,'k:',label="sim trajectory")
-        plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,'g',label="opt trajectory")
-        plt.plot(x_arr[0],y_arr[0]+0.75,'bo',label="start point")
-        plt.legend()
-        plt.xlabel("x position (m)")
-        plt.ylabel("y position (m)")
-        plt.axis("equal")
-
-        plt.figure()
-        plt.plot(t_arr,ang_arr,'k:',label="sim trajectory")
-        plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],'g',label="opt trajectory")
-        plt.plot(t_arr[0],ang_arr[0],'bo',label="start point")
-        plt.legend()
-        plt.xlabel("time (s)")
-        plt.ylabel("angle (rad)")
-        plt.show()
-
-    # Create a movie of the simulation:
-    if gen_mov == 1:
-        LanderMovie(x_arr,y_arr,ang_arr,u0_arr,u1_arr,t_arr,Xref,meta_data)
