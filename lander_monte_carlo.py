@@ -52,17 +52,12 @@ elif platform.system() == "Darwin":
 # meta data
 op_sys = OP_SYS
 monte_carlo_for_loop = 0 # do for-loop monte carlo sim to compare speed to vectorized? 1=yes, 0=no
-closed_loop = 0  # apply heuristic closed loop controller in addition to open-loop optimal control values 1=yes, 0=no
+closed_loop = 1  # apply heuristic closed loop controller in addition to open-loop optimal control values 1=yes, 0=no
 num_mc_sims = 1000 # number of Monte Carlo simulations
 mc_uncert_scl = 1.0 # scale the monte carlo uncertainties (1 is nominal)
-gen_mov  = 0     # generate movie on completion? 1=yes, 0=no
-open_mov = 1     # open movie on completion? 1=yes, 0=no
 traj_data_generate = 0 # generate trajectory csv and readme? 1=yes, 0=no
 make_plots = 1   # generate trajectory and control plots? 1=yes, 0=no
 rand_BC = 0      # Random boundary conditions? 1=yes, 0=no
-file_name = "OPT_controller008" # movie file name
-fps = 15 # frames per second of movie
-meta_data = (op_sys, open_mov, file_name, fps)
 
 # Constants
 bv = 5; bo = 11 # b_v and b_{\omega}
@@ -91,6 +86,7 @@ else:
     # Random boundary conditions
     rand_init = lambda : 2*(np.random.rand(6,1) - 0.5) # vals from -1 to 1
     range_vals = np.array(([-5,5],[0,10],[-2*np.pi,2*np.pi],[-3,3],[-3,3],[-2*np.pi,2*np.pi])) # row 1: x range, row 2: y range etc.
+    # range_vals = np.array(([-5,5],[0,10],[-2*np.pi,2*np.pi],[-3,3],[-3,3],[-2*np.pi,2*np.pi])) # row 1: x range, row 2: y range etc.
     centers = np.mean(range_vals,1).reshape(-1,1)
     radii = 0.5*(range_vals[:,1] - range_vals[:,0]).reshape(-1,1)
 
@@ -167,17 +163,9 @@ def MC_RK4_sim(X_init, Const_true, num_sims):
     u1_arr = np.zeros((int(T/h)+1, num_sims))  # torque array
     t_arr = np.zeros((int(T/h)+1))
 
-    K_init = np.ones((num_sims, 2, 6))
-    K_init[:,0,0] *= 0
-    K_init[:,0,2] *= 0
-    K_init[:,0,3] *= 0
-    K_init[:,0,5] *= 0
-    K_init[:,1,0] *= 8
-    K_init[:,1,1] *= 0
-    K_init[:,1,2] *= -75
-    K_init[:,1,3] *= 10
-    K_init[:,1,4] *= 0
-    K_init[:,1,5] *= -40
+    K_init = np.zeros((num_sims, 2, 6))
+    K_init[:,1,2] = -262.5*np.ones(num_sims)
+    K_init[:,1,5] = -140*np.ones(num_sims)
 
     # Lambdas/Functions
     tensor_ones = lambda A : np.ones((num_sims, A.shape[0], A.shape[1]))
@@ -203,12 +191,12 @@ def MC_RK4_sim(X_init, Const_true, num_sims):
         U_opt = U_opt * tensor_ones(U_opt) # U_opt.shape = (num_sims, 2, 1)
         K = K_init
         if closed_loop == 1:
-            # gain matrix for closed-loop control
-            # only works for small angles
-            ang_small = abs(X_tensor[:,2,0]) < pi/2.5 # a = 1 if angle is small enough, 1 otherwise
-            K[:,0,1] = -60*m*g*(2+cos(X_tensor[:,2,0]-pi))
-            K[:,0,4] = -80*m*g*(2+cos(X_tensor[:,2,0]-pi))
-            K[ang_small==False,:,:] *= 0 # set K matrices that corresond to false elements in ang_small, to zero
+            # closed-loop controller
+            temp = 20*cos(X_tensor[:,2,0])
+            K[:,0,1] = -100*temp
+            K[:,0,4] = -20*temp
+            K[:,1,0] = 10*temp
+            K[:,1,3] = 10*temp
             Xref_new = X_interp[j,:].reshape(-1,1)
             U_tensor = K@(X_tensor-Xref_new) + U_opt # U_tensor.shape = (num_sims, 2, 1)
         else:
@@ -262,8 +250,11 @@ end = time.time()
 print('Finished '+ str(num_mc_sims) +' simulations in ' + "{:.3f}".format(end - start) + ' seconds')
 print()
 # Processing
-# TODO get euclidean distance from opt traj to Monte Carlo sims at each time step
-#  then compute standard deviation at each time step and plot over a sample of sims.
+# Note: x_arr.shape = y_arr.shape = (num times, num_mc_sims)
+# TODO compute standard deviation at each time step and plot over a x_err/y_err.
+x_err = x_interp(t_arr[0:-1]).reshape(-1,1) - x_arr[0:-1,:]
+# x_sdv =
+y_err = y_interp(t_arr[0:-1]).reshape(-1,1) - y_arr[0:-1,:]
 
 # Run Monte Carlo simulation (for loop)
 # for time-comparison only (no stored data)
@@ -281,8 +272,8 @@ if monte_carlo_for_loop == 1:
         for j in range(int(T/h)):
             U_opt = U_interp[j,:].reshape(-1,1)
             if closed_loop == 1:
-                a = abs(X_[2]) < pi/2.5
-                K = a*np.array(([0, -60*m*g*(2+cos(X_[2][0]-pi)), 0, 0, -80*m*g*(2+cos(X_[2][0]-pi)), 0], [8, 0, -75, 10, 0, -40]))
+                temp = 20*cos(X_[2][0])
+                K = np.array(([0, -100*temp, 0, 0, -20*temp, 0], [10*temp, 0, -262.5, 10*temp, 0, -140]))
                 Xref_new = X_interp[j,:].reshape(-1,1)
                 U = K@(X_-Xref_new) + U_opt
             else:
@@ -336,18 +327,30 @@ if make_plots == 1:
     plt.plot(x_arr[:,0], y_arr[:,0],sim_line,label="sim trajectories",alpha=sim_alpha)
     plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1],opt_line,label="opt trajectory",linewidth=opt_wid)
     plt.plot(x_arr[0,0],y_arr[0,0],strt_mrkr,label="start point")
-    plt.legend()
+    plt.legend(loc="lower left")
     plt.xlabel("x position (m)")
     plt.ylabel("y position (m)")
     plt.axis("equal")
 
     # Angle
-    # plt.figure()
-    # plt.plot(t_arr,ang_arr,sim_line,alpha=sim_alpha)
-    # plt.plot(t_arr,ang_arr[:,0],sim_line,label="sim trajectory",alpha=sim_alpha)
-    # plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],opt_line,label="opt trajectory",linewidth=opt_wid)
-    # plt.plot(t_arr[0],ang_arr[0,0],strt_mrkr,label="start point")
-    # plt.legend()
-    # plt.xlabel("time (s)")
-    # plt.ylabel("angle (rad)")
+    plt.figure()
+    plt.plot(t_arr,ang_arr,sim_line,alpha=sim_alpha)
+    plt.plot(t_arr,ang_arr[:,0],sim_line,label="sim trajectory",alpha=sim_alpha)
+    plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],opt_line,label="opt trajectory",linewidth=opt_wid)
+    plt.plot(t_arr[0],ang_arr[0,0],strt_mrkr,label="start point")
+    plt.legend()
+    plt.xlabel("time (s)")
+    plt.ylabel("angle (rad)")
+
+    # Error
+    plt.figure()
+    plt.plot(t_arr[0:-1],x_err,sim_line,alpha=sim_alpha)
+    plt.xlabel("time (s)")
+    plt.ylabel("x distance (m)")
+    plt.title("x distance from nominal trajectory")
+    plt.figure()
+    plt.plot(t_arr[0:-1],y_err,sim_line,alpha=sim_alpha)
+    plt.xlabel("time (s)")
+    plt.ylabel("y distance (m)")
+    plt.title("y distance from nominal trajectory")
     plt.show()

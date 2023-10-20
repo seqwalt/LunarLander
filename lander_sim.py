@@ -42,14 +42,14 @@ gen_mov  = 0     # generate movie on completion? 1=yes, 0=no
 open_mov = 1     # open movie on completion? 1=yes, 0=no
 traj_data_generate = 0 # generate trajectory csv and readme? 1=yes, 0=no
 make_plots = 1   # generate trajectory and control plots? 1=yes, 0=no
-rand_BC = 1      # Random boundary conditions? 1=yes, 0=no
+rand_BC = 0      # Random boundary conditions? 1=yes, 0=no
 file_name = "OPT_controller008" # movie file name
 fps = 15 # frames per second of movie
 meta_data = (op_sys, open_mov, file_name, fps)
 
 # Constants
 bv = 5; bo = 11 # b_v and b_{\omega}
-g = 9.8; m = 10 # gravity and mass
+g = 0.5; m = 10 # gravity and mass
 rotI = (13/12)*m
 Const = np.array(([bv,bo,m,g,rotI])) # order matters with these consts
 
@@ -153,19 +153,13 @@ print()
 
 # Runge-Kutta 4 simulation
 for j in range(int(T/h)):
-    # gain matrix for closed-loop control
-    # only works for small angles
-    if abs(X[2]) < pi/2.5:
-        a = 1
-    else:
-        a = 0
-    #a = 0
-    K = a*np.array(([0, -60*m*g*(2+cos(X[2][0]-pi)), 0, 0, -80*m*g*(2+cos(X[2][0]-pi)), 0],\
-                  [8, 0, -75, 10, 0, -40]))
+    # closed-loop control
+    temp = 20*cos(X[2][0])
+    K = np.array(([0, -100*temp, 0, 0, -20*temp, 0], [10*temp, 0, -262.5, 10*temp, 0, -140]))
     U_opt = U_interp[j,:].reshape(-1,1)
     Xref_new = X_interp[j,:].reshape(-1,1)
     U = K@(X-Xref_new) + U_opt
-    #U = U_opt
+    # U = U_opt
     U[0] = np.clip(U[0],0,max_thrust) # constrain thrust
     U[1] = np.clip(U[1],-max_torque,max_torque) # constrain torque
 
