@@ -251,11 +251,12 @@ print('Finished '+ str(num_mc_sims) +' simulations in ' + "{:.3f}".format(end - 
 print()
 # Processing
 # Note: x_arr.shape = y_arr.shape = (num times, num_mc_sims)
-# TODO compute standard deviation at each time step and plot over a x_err/y_err.
-x_err = x_interp(t_arr[0:-1]).reshape(-1,1) - x_arr[0:-1,:]
-# x_avg = np.average(x_arr)
-# x_stdev = np.sqrt(np.sum(x_arr - )/num_mc_sims)
+x_err = x_interp(t_arr[0:-1]).reshape(-1,1) - x_arr[0:-1,:]               # diff btw true and reference x vals
+# x_avg = np.average(x_arr,1).reshape(-1,1)                                 # average x for each time step
+# x_stdev = np.sqrt(np.sum((x_arr - x_avg)**2,1)/num_mc_sims).reshape(-1,1) # standard deviation for each time step
 y_err = y_interp(t_arr[0:-1]).reshape(-1,1) - y_arr[0:-1,:]
+# y_avg = np.average(y_arr,1).reshape(-1,1)
+# y_stdev = np.sqrt(np.sum((y_arr - y_avg)**2,1)/num_mc_sims).reshape(-1,1)
 
 # Run Monte Carlo simulation (for loop)
 # for time-comparison only (no stored data)
@@ -310,48 +311,54 @@ if make_plots == 1:
     BIGGER_SIZE = 16
 
     plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
-    plt.rc('axes', titlesize=SMALL_SIZE)     # fontsize of the axes title
+    plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
     plt.rc('axes', labelsize=MEDIUM_SIZE)    # fontsize of the x and y labels
     plt.rc('xtick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
     plt.rc('ytick', labelsize=SMALL_SIZE)    # fontsize of the tick labels
     plt.rc('legend', fontsize=SMALL_SIZE)    # legend fontsize
     plt.rc('figure', titlesize=BIGGER_SIZE)  # fontsize of the figure title
 
-    sim_alpha = 0.05
+    sim_alpha = 1
     opt_line = 'y:'
-    sim_line = 'k'
+    sim_line = '#525252'
     strt_mrkr = 'bo'
     opt_wid = 3
 
     # Position
     plt.plot(x_arr, y_arr,sim_line,alpha=sim_alpha)
-    plt.plot(x_arr[:,0], y_arr[:,0],sim_line,label="sim trajectories",alpha=sim_alpha)
-    plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1],opt_line,label="opt trajectory",linewidth=opt_wid)
+    plt.plot(x_arr[:,0], y_arr[:,0],sim_line,label="Monte Carlo simulations",alpha=sim_alpha)
+    plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1],opt_line,label="reference trajectory",linewidth=opt_wid)
     plt.plot(x_arr[0,0],y_arr[0,0],strt_mrkr,label="start point")
     plt.legend(loc="lower left")
     plt.xlabel("x position (m)")
     plt.ylabel("y position (m)")
     plt.axis("equal")
+    if closed_loop:
+        title = "Closed loop control"
+    else:
+        title = "Open loop control"
+    plt.title(title)
 
     # Angle
-    plt.figure()
-    plt.plot(t_arr,ang_arr,sim_line,alpha=sim_alpha)
-    plt.plot(t_arr,ang_arr[:,0],sim_line,label="sim trajectory",alpha=sim_alpha)
-    plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],opt_line,label="opt trajectory",linewidth=opt_wid)
-    plt.plot(t_arr[0],ang_arr[0,0],strt_mrkr,label="start point")
-    plt.legend()
-    plt.xlabel("time (s)")
-    plt.ylabel("angle (rad)")
+    # plt.figure()
+    # plt.plot(t_arr,ang_arr,sim_line,alpha=sim_alpha)
+    # plt.plot(t_arr,ang_arr[:,0],sim_line,label="sim trajectory",alpha=sim_alpha)
+    # plt.plot(OPT_TRAJ[:,8],OPT_TRAJ[:,2],opt_line,label="opt trajectory",linewidth=opt_wid)
+    # plt.plot(t_arr[0],ang_arr[0,0],strt_mrkr,label="start point")
+    # plt.legend()
+    # plt.xlabel("time (s)")
+    # plt.ylabel("angle (rad)")
 
     # Error
-    plt.figure()
-    plt.plot(t_arr[0:-1],x_err,sim_line,alpha=sim_alpha)
-    plt.xlabel("time (s)")
-    plt.ylabel("x distance (m)")
-    plt.title("x distance from nominal trajectory")
-    plt.figure()
-    plt.plot(t_arr[0:-1],y_err,sim_line,alpha=sim_alpha)
-    plt.xlabel("time (s)")
-    plt.ylabel("y distance (m)")
-    plt.title("y distance from nominal trajectory")
+    # plt.figure()
+    # plt.plot(t_arr[0:-1],x_err,sim_line,alpha=sim_alpha)
+    # plt.xlabel("time (s)")
+    # plt.ylabel("x distance (m)")
+    # plt.title("x distance from nominal trajectory")
+
+    # plt.figure()
+    # plt.plot(t_arr[0:-1],y_err,sim_line,alpha=sim_alpha)
+    # plt.xlabel("time (s)")
+    # plt.ylabel("y distance (m)")
+    # plt.title("y distance from nominal trajectory")
     plt.show()
