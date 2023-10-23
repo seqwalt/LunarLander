@@ -253,7 +253,8 @@ print()
 # Note: x_arr.shape = y_arr.shape = (num times, num_mc_sims)
 # TODO compute standard deviation at each time step and plot over a x_err/y_err.
 x_err = x_interp(t_arr[0:-1]).reshape(-1,1) - x_arr[0:-1,:]
-# x_sdv =
+# x_avg = np.average(x_arr)
+# x_stdev = np.sqrt(np.sum(x_arr - )/num_mc_sims)
 y_err = y_interp(t_arr[0:-1]).reshape(-1,1) - y_arr[0:-1,:]
 
 # Run Monte Carlo simulation (for loop)
