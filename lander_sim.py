@@ -38,18 +38,22 @@ elif platform.system() == "Darwin":
     OP_SYS = "mac"
 # meta data
 op_sys = OP_SYS
-gen_mov  = 0     # generate movie on completion? 1=yes, 0=no
+gen_mov  = 1     # generate movie on completion? 1=yes, 0=no
 open_mov = 1     # open movie on completion? 1=yes, 0=no
 traj_data_generate = 0 # generate trajectory csv and readme? 1=yes, 0=no
-make_plots = 1   # generate trajectory and control plots? 1=yes, 0=no
+make_plots = 0   # generate trajectory and control plots? 1=yes, 0=no
 rand_BC = 0      # Random boundary conditions? 1=yes, 0=no
-file_name = "OPT_controller008" # movie file name
+file_name = "OPT_controller011" # movie file name
 fps = 15 # frames per second of movie
-meta_data = (op_sys, open_mov, file_name, fps)
+dpi = 100 # resolution of movie (dots per inch)
+meta_data = (op_sys, open_mov, file_name, fps, dpi)
 
 # Constants
 bv = 5; bo = 11 # b_v and b_{\omega}
-g = 0.5; m = 10 # gravity and mass
+g = 1.62 # moon
+# g = 9.81 # earth
+# g = 0.2
+m = 10 # mass
 rotI = (13/12)*m
 Const = np.array(([bv,bo,m,g,rotI])) # order matters with these consts
 
@@ -57,16 +61,16 @@ Const = np.array(([bv,bo,m,g,rotI])) # order matters with these consts
 if rand_BC != 1:
     # Not random boundary conditions
     # Total time in seconds
-    T = 5
+    T = 3
 
     # Initial State
-    x0 = -1; y0 = 0; ang0 = 0;
+    x0 = -3; y0 = 0; ang0 = 0*2*pi;
     vx0 = 0; vy0 = 0; omega0 = 0;
     X0 = np.array(([x0],[y0],[ang0],[vx0],[vy0],[omega0])) # initial state
     X = X0
 
     # Reference tracking state
-    xref = 1; yref = 0; angref = 0;
+    xref = 3; yref = 0; angref = 0;
     vxref = 0; vyref = 0; omegaref = 0;
     Xref = np.array(([xref],[yref],[angref],\
         [vxref],[vyref],[omegaref])) # reference state
@@ -90,7 +94,7 @@ step_sizes = np.array(([h]))
 
 # Initial Control
 max_thrust = 5000
-max_torque = 200
+max_torque = 1000
 thrust0 = m*g
 torque0 = 0
 U0 = np.array(([thrust0],[torque0]))
@@ -200,8 +204,8 @@ if traj_data_generate == 1:
 
 # Visualizations
     # Suppress GTK warning outputs
-fd = os.open('/dev/null',os.O_WRONLY)
-os.dup2(fd,2)
+# fd = os.open('/dev/null',os.O_WRONLY)
+# os.dup2(fd,2)
 
 # Make plot of trajectory
 if make_plots == 1:

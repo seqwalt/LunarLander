@@ -51,34 +51,34 @@ elif platform.system() == "Darwin":
     OP_SYS = "mac"
 # meta data
 op_sys = OP_SYS
-monte_carlo_for_loop = 0 # do for-loop monte carlo sim to compare speed to vectorized? 1=yes, 0=no
-closed_loop = 1  # apply heuristic closed loop controller in addition to open-loop optimal control values 1=yes, 0=no
+monte_carlo_for_loop = False # do for-loop monte carlo sim to compare speed to vectorized? 1=yes, 0=no
+closed_loop = True  # apply heuristic closed loop controller in addition to open-loop optimal control values 1=yes, 0=no
 num_mc_sims = 1000 # number of Monte Carlo simulations
 mc_uncert_scl = 1.0 # scale the monte carlo uncertainties (1 is nominal)
-traj_data_generate = 0 # generate trajectory csv and readme? 1=yes, 0=no
-make_plots = 1   # generate trajectory and control plots? 1=yes, 0=no
-rand_BC = 0      # Random boundary conditions? 1=yes, 0=no
+traj_data_generate = False # generate trajectory csv and readme? 1=yes, 0=no
+make_plots = True   # generate trajectory and control plots? 1=yes, 0=no
+rand_BC = False      # Random boundary conditions? 1=yes, 0=no
 
 # Constants
 bv = 5; bo = 11 # b_v and b_{\omega}
-g = 2.0; m = 10.0 # gravity and mass
+g = 9.8; m = 10.0 # gravity and mass
 rotI = (13/12)*m
 Const = np.array((bv,bo,m,g,rotI)).reshape(-1,1) # order matters with these consts
 
 # Set boundary conditions and final time
-if rand_BC != 1:
+if not rand_BC:
     # Not random boundary conditions
     # Total time in seconds
-    T = 5
+    T = 3
 
     # Initial State
-    x0 = -1; y0 = 0; ang0 = 0;
+    x0 = -3; y0 = 0; ang0 = 0;
     vx0 = 0; vy0 = 0; omega0 = 0;
     X0 = np.array(([x0],[y0],[ang0],[vx0],[vy0],[omega0])) # initial state
     X = X0
 
     # Reference tracking state
-    xref = 1; yref = 0; angref = 0;
+    xref = 3; yref = 0; angref = 0;
     vxref = 0; vyref = 0; omegaref = 0;
     Xref = np.array(([xref],[yref],[angref],\
         [vxref],[vyref],[omegaref])) # reference state
@@ -103,7 +103,7 @@ step_sizes = np.array(([h]))
 
 # Initial Control
 max_thrust = 5000
-max_torque = 200
+max_torque = 1000
 thrust0 = m*g
 torque0 = 0
 U0 = np.array(([thrust0],[torque0]))
@@ -115,7 +115,7 @@ Ubound = np.array(([max_thrust], [max_torque]))
 # Solve optimal trajectory
 numColl = 100 # number of collocation points
 opt_dict = SolveTrajectory(X0, Xref, Ubound, Const, T, numColl, op_sys)
-if opt_dict['feasible'] == False:
+if not opt_dict['feasible']:
     # abort
     print('Aborting without creating files.')
     exit()
@@ -151,7 +151,7 @@ X_interp = np.hstack((x_interp(t_steps),y_interp(t_steps),\
 
 # Monte Carlo Runge-Kutta 4 simulation function
 # Using numpy vectorization, each step of the RK4 advances all Monte Carlo simulations
-def MC_RK4_sim(X_init, Const_true, num_sims):
+def MC_RK4_sim(X_init, Const_true, num_sims, closed_loop):
     # Initialize data arrays
     x_arr = np.zeros((int(T/h)+1, num_sims))
     y_arr = np.zeros((int(T/h)+1, num_sims))
@@ -190,7 +190,7 @@ def MC_RK4_sim(X_init, Const_true, num_sims):
         U_opt = U_interp[j,:].reshape(-1,1)
         U_opt = U_opt * tensor_ones(U_opt) # U_opt.shape = (num_sims, 2, 1)
         K = K_init
-        if closed_loop == 1:
+        if closed_loop:
             # closed-loop controller
             temp = 20*cos(X_tensor[:,2,0])
             K[:,0,1] = -100*temp
@@ -245,10 +245,19 @@ def MC_RK4_sim(X_init, Const_true, num_sims):
 # Run Monte Carlo simulation (vectorized)
 print('Running simulations with vectorization...')
 start = time.time()
-x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr = MC_RK4_sim(X, Const, num_mc_sims)
+x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr = MC_RK4_sim(X, Const, num_mc_sims, closed_loop)
 end = time.time()
 print('Finished '+ str(num_mc_sims) +' simulations in ' + "{:.3f}".format(end - start) + ' seconds')
 print()
+
+# print('Running closed/open loop simulations with vectorization...')
+# start = time.time()
+# x_arr, y_arr, ang_arr, vx_arr, vy_arr, omega_arr, u0_arr, u1_arr, t_arr = MC_RK4_sim(X, Const, num_mc_sims, True)  # closed loop
+# x_arr_o, y_arr_o, ang_arr_o, vx_arr_o, vy_arr_o, omega_arr_o, u0_arr_o, u1_arr_o, t_arr_o = MC_RK4_sim(X, Const, num_mc_sims, False) # open loop
+# end = time.time()
+# print('Finished '+ str(2*num_mc_sims) +' simulations in ' + "{:.3f}".format(end - start) + ' seconds')
+# print()
+
 # Processing
 # Note: x_arr.shape = y_arr.shape = (num times, num_mc_sims)
 x_err = x_interp(t_arr[0:-1]).reshape(-1,1) - x_arr[0:-1,:]               # diff btw true and reference x vals
@@ -260,7 +269,7 @@ y_err = y_interp(t_arr[0:-1]).reshape(-1,1) - y_arr[0:-1,:]
 
 # Run Monte Carlo simulation (for loop)
 # for time-comparison only (no stored data)
-if monte_carlo_for_loop == 1:
+if monte_carlo_for_loop:
     # Injected noise
     rand_init = lambda : 2*(np.random.rand(5,1) - 0.5) # vals from -1 to 1
     noise_range = np.array((bv*0.05, bo*0.02, m*0.02, g*0.02, rotI*0.02)).reshape(-1,1)
@@ -273,7 +282,7 @@ if monte_carlo_for_loop == 1:
         X_ = X
         for j in range(int(T/h)):
             U_opt = U_interp[j,:].reshape(-1,1)
-            if closed_loop == 1:
+            if closed_loop:
                 temp = 20*cos(X_[2][0])
                 K = np.array(([0, -100*temp, 0, 0, -20*temp, 0], [10*temp, 0, -262.5, 10*temp, 0, -140]))
                 Xref_new = X_interp[j,:].reshape(-1,1)
@@ -294,7 +303,7 @@ if monte_carlo_for_loop == 1:
     print()
 
 # Plot using data from vectorized Monte Carlo sims
-if make_plots == 1:
+if make_plots:
     # Suppress GTK warning outputs
     # CAUTION: all error messages suppressed
     #'''
@@ -307,8 +316,8 @@ if make_plots == 1:
     print()
 
     SMALL_SIZE = 12
-    MEDIUM_SIZE = 14
-    BIGGER_SIZE = 16
+    MEDIUM_SIZE = 16
+    BIGGER_SIZE = 18
 
     plt.rc('font', size=SMALL_SIZE)          # controls default text sizes
     plt.rc('axes', titlesize=MEDIUM_SIZE)     # fontsize of the axes title
@@ -321,14 +330,15 @@ if make_plots == 1:
     sim_alpha = 1
     opt_line = 'y:'
     sim_line = '#525252'
+    # sim_line = 'r'
     strt_mrkr = 'bo'
     opt_wid = 3
 
     # Position
-    plt.plot(x_arr, y_arr,sim_line,alpha=sim_alpha)
-    plt.plot(x_arr[:,0], y_arr[:,0],sim_line,label="Monte Carlo simulations",alpha=sim_alpha)
-    plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1],opt_line,label="reference trajectory",linewidth=opt_wid)
-    plt.plot(x_arr[0,0],y_arr[0,0],strt_mrkr,label="start point")
+    plt.plot(x_arr, y_arr + 0.75,sim_line,alpha=sim_alpha)
+    plt.plot(x_arr[:,0], y_arr[:,0] + 0.75,sim_line,label="Monte Carlo simulations",alpha=sim_alpha)
+    plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,opt_line,label="reference trajectory",linewidth=opt_wid)
+    plt.plot(x_arr[0,0],y_arr[0,0] + 0.75,strt_mrkr,label="start point")
     plt.legend(loc="lower left")
     plt.xlabel("x position (m)")
     plt.ylabel("y position (m)")
@@ -338,6 +348,20 @@ if make_plots == 1:
     else:
         title = "Open loop control"
     plt.title(title)
+
+    # Position plot for closed + open loop control sims
+    # plt.plot(x_arr_o, y_arr_o + 0.75,sim_line,alpha=sim_alpha)
+    # plt.plot(x_arr_o[:,0], y_arr_o[:,0] + 0.75,sim_line,label="open loop control",alpha=sim_alpha)
+    # plt.plot(x_arr, y_arr + 0.75,'k',alpha=sim_alpha)
+    # plt.plot(x_arr[:,0], y_arr[:,0] + 0.75,'k',label="closed loop control",alpha=sim_alpha)
+    # plt.plot(OPT_TRAJ[:,0],OPT_TRAJ[:,1] + 0.75,opt_line,label="reference trajectory",linewidth=opt_wid)
+    # plt.plot(x_arr[0,0],y_arr[0,0] + 0.75,strt_mrkr,label="start point")
+    # plt.legend(loc=(0.15,0.05))
+    # plt.xlabel("x position (m)")
+    # plt.ylabel("y position (m)")
+    # plt.title('Monte Carlo simulations')
+    # plt.axis("equal")
+    # plt.tight_layout()
 
     # Angle
     # plt.figure()

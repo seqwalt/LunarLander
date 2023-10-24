@@ -51,8 +51,8 @@ def LanderImage(X,Y,ANG,THRUST,TORQUE,TIME,filename,Num_landers):
     print()
 
     # Suppress GTK warning outputs
-    fd = os.open('/dev/null',os.O_WRONLY)
-    os.dup2(fd,2)
+    # fd = os.open('/dev/null',os.O_WRONLY)
+    # os.dup2(fd,2)
 
     # set figure size
     fig = plt.gcf()
@@ -130,7 +130,7 @@ TORQUE = DATA[:,-1]
 LanderImage(X,Y,ANG,THRUST,TORQUE,TIME,filename,num_landers)
 display_str = 'eog figures/image_'+filename[-6:-4]+'.png'
 os.system(display_str)
-'''
+#'''
 
 def LanderMovie(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
 
@@ -173,8 +173,11 @@ def LanderMovie(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
     y_inches = (max(Y)+2 - (min(Y)-0.5))/1.15
     x_inches = ratio*y_inches
 
-    os.system("rm temp_imgs/*.png")
+    if not os.path.isdir('temp_imgs'):
+        os.mkdir('temp_imgs')
+
     fps = meta_data[3]    # frames/second
+    dpi_ = meta_data[4]   # dots/inch
     T_aft = 2 #time to keep video going after reaching goal
 
     print('Creating '+str(fps)+' FPS movie...')
@@ -224,20 +227,21 @@ def LanderMovie(X,Y,ANG,THRUST,TORQUE,TIME,REF,meta_data):
         ax.add_patch(thr)
         ax.add_patch(fire)
         #plt.plot(rotPnt[0]+pos[0],rotPnt[1]+pos[1],'ko') # pt of rotation
-        plt.plot(X,Y + b/2 + abv,'g') # trajectory
+        plt.plot(X,Y + b/2 + abv,'g', label="optimal trajectory") # trajectory
         plt.plot(x,y,'ko') # current position
         plt.plot([min(X)-1,max(X)+1],[0,0],"k")
-        plt.plot(REF[0],REF[1] + b/2 + abv,"mo",label="reference point")
+        #plt.plot(REF[0],REF[1] + b/2 + abv,"mo",label="reference point")
         plt.plot(X[0],Y[0] + b/2 + abv,"bo",label="start point")
         ax.set_xlim(min(X)-1,max(X)+1)
         ax.set_ylim(min(Y)-0.5,max(Y)+2)
         plt.legend(loc='upper right')
-        plt.savefig("temp_imgs/image" + str(j).zfill(4) + ".png")
+        plt.savefig("temp_imgs/image" + str(j).zfill(4) + ".png", dpi=dpi_)
         plt.close()
     filename = meta_data[2]
     os.system("ffmpeg -hide_banner -loglevel error -y -framerate "+str(fps)+" -i temp_imgs/image%04d.png \
         -vf \"scale=trunc(iw/2)*2:trunc(ih/2)*2\" -vcodec libx264 -crf 20 -pix_fmt \
         yuv420p movies/"+filename+".mp4")
+    os.system("rm temp_imgs/*.png")
 
     if meta_data[1] == 1:
         if meta_data[0] == "linux":
